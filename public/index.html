@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>IoT DC Motor & Lux Timer Controller</title>
+  <!-- Firebase JS SDK v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      padding: 30px;
+      background-color: #ffffff;
+      color: #000000;
+    }
+
+    h2 {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+
+    .label-text {
+      font-weight: 500;
+      margin-right: 6px;
+      min-width: 140px;
+    }
+
+    input[type="text"] {
+      font-family: Arial, sans-serif;
+      font-size: 15px;
+      padding: 3px 4px;
+      border: 1px solid #767676;
+      border-radius: 2px;
+      text-align: center;
+      margin: 0 4px;
+    }
+
+    .time-in {
+      width: 36px;
+    }
+
+    .val-in {
+      width: 60px;
+    }
+
+    .status-in {
+      width: 65px;
+      font-weight: bold;
+      background-color: #f0f0f0;
+    }
+
+    .read-display {
+      width: 130px;
+      background-color: #f0f0f0;
+      font-weight: 500;
+    }
+
+    /* สไตล์สีปุ่มกด */
+    button {
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 4px 12px;
+      margin-left: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+      transition: all 0.1s ease-in-out;
+    }
+
+    button:active {
+      transform: scale(0.96);
+    }
+
+    .btn-read {
+      background-color: #0284c7;
+      color: #ffffff;
+    }
+    .btn-read:hover {
+      background-color: #0369a1;
+    }
+
+    .btn-set {
+      background-color: #16a34a;
+      color: #ffffff;
+    }
+    .btn-set:hover {
+      background-color: #15803d;
+    }
+
+    .btn-off {
+      background-color: #dc2626;
+      color: #ffffff;
+    }
+    .btn-off:hover {
+      background-color: #b91c1c;
+    }
+
+    .btn-on {
+      background-color: #65a30d;
+      color: #ffffff;
+    }
+    .btn-on:hover {
+      background-color: #4d7c0f;
+    }
+
+    #terminal {
+      margin-top: 25px;
+      font-family: monospace;
+      font-size: 14px;
+      background: #1e1e1e;
+      color: #4ade80;
+      padding: 10px 14px;
+      width: 580px;
+      border-radius: 4px;
+      min-height: 24px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>IoT DC Motor & Lux Timer Controller</h2>
+
+  <!-- ฟังก์ชัน 1: Time -->
+  <div class="control-row">
+    <span class="label-text">Time:</span>
+    hh:<input type="text" id="t_hh" class="time-in" value="00">
+    mm:<input type="text" id="t_mm" class="time-in" value="00">
+    ss:<input type="text" id="t_ss" class="time-in" value="00">
+    <button class="btn-read" onclick="sendCmd('R_TIME#')">Read</button>
+    <button class="btn-set" onclick="setTime()">Set</button>
+  </div>
+
+  <!-- ฟังก์ชัน 2: Motor Speed (เพิ่มปุ่ม Read) -->
+  <div class="control-row">
+    <span class="label-text">Motor Speed (%):</span>
+    <input type="text" id="motor_spd" class="val-in" value="80">
+    <button class="btn-read" onclick="sendCmd('R_SPD#')">Read</button>
+    <button class="btn-set" onclick="setSpeed()">Set</button>
+  </div>
+
+  <!-- ฟังก์ชัน 3: Read Current Lux -->
+  <div class="control-row">
+    <span class="label-text">Current Lux:</span>
+    <input type="text" id="disp_current_lux" class="val-in" value="0.0" readonly>
+    <button class="btn-read" onclick="sendCmd('3#')">Read</button>
+  </div>
+
+  <!-- ฟังก์ชัน 4 & 5: Timer OFF / Timer ON -->
+  <div class="control-row">
+    <span class="label-text">Timer Status:</span>
+    <input type="text" id="timer_status" class="status-in" value="OFF" readonly>
+    <button class="btn-off" onclick="setTimerState('OFF')">OFF</button>
+    <button class="btn-on" onclick="setTimerState('ON')">ON</button>
+  </div>
+
+  <!-- ฟังก์ชัน 6 & 7: Set Lux Range / Read Lux Range -->
+  <div class="control-row">
+    <span class="label-text">Lux Range:</span>
+    Min:<input type="text" id="lux_min" class="val-in" value="10">
+    Max:<input type="text" id="lux_max" class="val-in" value="1000">
+    <button class="btn-read" onclick="sendCmd('7#')">Read</button>
+    <button class="btn-set" onclick="setLuxRange()">Set</button>
+  </div>
+
+  <!-- ฟังก์ชัน 8: Set Start Time 1 -->
+  <div class="control-row">
+    <span class="label-text">Start Time 1:</span>
+    hh:<input type="text" id="t1_st_hh" class="time-in" value="00">
+    mm:<input type="text" id="t1_st_mm" class="time-in" value="00">
+    ss:<input type="text" id="t1_st_ss" class="time-in" value="00">
+    <button class="btn-set" onclick="setSpecificTime('8', 't1_st_hh', 't1_st_mm', 't1_st_ss')">Set</button>
+  </div>
+
+  <!-- ฟังก์ชัน 9: Set Stop Time 1 -->
+  <div class="control-row">
+    <span class="label-text">Stop Time 1:</span>
+    hh:<input type="text" id="t1_sp_hh" class="time-in" value="00">
+    mm:<input type="text" id="t1_sp_mm" class="time-in" value="00">
+    ss:<input type="text" id="t1_sp_ss" class="time-in" value="00">
+    <button class="btn-set" onclick="setSpecificTime('9', 't1_sp_hh', 't1_sp_mm', 't1_sp_ss')">Set</button>
+  </div>
+
+  <!-- ฟังก์ชัน 10: Show Timer 1 Range -->
+  <div class="control-row">
+    <span class="label-text">Timer 1 Range:</span>
+    <input type="text" id="disp_t1_range" class="read-display" value="00:00:00-00:00:00" readonly>
+    <button class="btn-read" onclick="sendCmd('10#')">Read</button>
+  </div>
+
+  <!-- ฟังก์ชัน 11: Set Start Time 2 -->
+  <div class="control-row">
+    <span class="label-text">Start Time 2:</span>
+    hh:<input type="text" id="t2_st_hh" class="time-in" value="00">
+    mm:<input type="text" id="t2_st_mm" class="time-in" value="00">
+    ss:<input type="text" id="t2_st_ss" class="time-in" value="00">
+    <button class="btn-set" onclick="setSpecificTime('11', 't2_st_hh', 't2_st_mm', 't2_st_ss')">Set</button>
+  </div>
+
+  <!-- ฟังก์ชัน 12: Set Stop Time 2 -->
+  <div class="control-row">
+    <span class="label-text">Stop Time 2:</span>
+    hh:<input type="text" id="t2_sp_hh" class="time-in" value="00">
+    mm:<input type="text" id="t2_sp_mm" class="time-in" value="00">
+    ss:<input type="text" id="t2_sp_ss" class="time-in" value="00">
+    <button class="btn-set" onclick="setSpecificTime('12', 't2_sp_hh', 't2_sp_mm', 't2_sp_ss')">Set</button>
+  </div>
+
+  <!-- ฟังก์ชัน 13: Show Timer 2 Range -->
+  <div class="control-row">
+    <span class="label-text">Timer 2 Range:</span>
+    <input type="text" id="disp_t2_range" class="read-display" value="00:00:00-00:00:00" readonly>
+    <button class="btn-read" onclick="sendCmd('13#')">Read</button>
+  </div>
+
+  <!-- Terminal Response -->
+  <div id="terminal">System Ready...</div>
+
+  <script>
+    const firebaseConfig = {
+      databaseURL: "https://miniproject-iot-b4b80-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    db.ref('iot_control/response').on('value', (snap) => {
+      const res = snap.val();
+      if (!res || res === "") return;
+
+      document.getElementById('terminal').innerText = "Receiver >> " + res;
+
+      // 0. เวลา RTC
+      if (res.startsWith("Time Set") || res.startsWith("Time:") || res.startsWith("Time Set:")) {
+        const tStr = res.replace("Time Set:", "").replace("Time Set", "").replace("Time:", "").replace("#", "").trim();
+        const parts = tStr.split(":");
+        if (parts.length === 3) {
+          document.getElementById('t_hh').value = parts[0].padStart(2, '0');
+          document.getElementById('t_mm').value = parts[1].padStart(2, '0');
+          document.getElementById('t_ss').value = parts[2].padStart(2, '0');
+        }
+      }
+      // ดึงความเร็วมอเตอร์กลับมาใส่ในช่อง (Speed Target Set xx% หรือ Speed Target: xx%)
+      else if (res.includes("Speed Target")) {
+        const spd = res.replace("Speed Target Set", "").replace("Speed Target:", "").replace("%", "").replace("#", "").trim();
+        document.getElementById('motor_spd').value = spd;
+      }
+      // 1. ตอบกลับค่าแสง F3
+      else if (res.startsWith("Current Lux:")) {
+        const val = res.replace("Current Lux:", "").replace("#", "").trim();
+        document.getElementById('disp_current_lux').value = val;
+      }
+      // 2. สถานะ Timer
+      else if (res.includes("TIMER ON")) {
+        document.getElementById('timer_status').value = "ON";
+      } else if (res.includes("TIMER OFF")) {
+        document.getElementById('timer_status').value = "OFF";
+      }
+      // 3. ช่วงค่าแสง F7
+      else if (res.startsWith("Lux Target:") || res.startsWith("Lux Range")) {
+        const parts = res.replace("Lux Target:", "").replace("Lux Range", "").replace("Lux", "").replace("#", "").trim().split("-");
+        if (parts.length === 2) {
+          document.getElementById('lux_min').value = parts[0].trim();
+          document.getElementById('lux_max').value = parts[1].trim();
+        }
+      }
+      // 4. Timer 1 Range
+      else if (res.startsWith("T1 Range:")) {
+        const val = res.replace("T1 Range:", "").replace("#", "").trim();
+        document.getElementById('disp_t1_range').value = val;
+      }
+      // 5. Timer 2 Range
+      else if (res.startsWith("T2 Range:")) {
+        const val = res.replace("T2 Range:", "").replace("#", "").trim();
+        document.getElementById('disp_t2_range').value = val;
+      }
+    });
+
+    function sendCmd(cmd) {
+      const fullCmd = cmd.endsWith("#") ? cmd : cmd + "#";
+      db.ref('iot_control/command').set(fullCmd);
+      document.getElementById('terminal').innerText = "Send >> " + fullCmd;
+    }
+
+    function setTime() {
+      const h = document.getElementById('t_hh').value.trim();
+      const m = document.getElementById('t_mm').value.trim();
+      const s = document.getElementById('t_ss').value.trim();
+      if (!h || !m || !s) return alert("กรุณากรอกเวลาให้ครบถ้วน");
+      sendCmd(`1,${parseInt(h)},${parseInt(m)},${parseInt(s)}#`);
+    }
+
+    function setSpeed() {
+      let spd = document.getElementById('motor_spd').value.trim();
+      if (spd !== "") {
+        let val = Math.max(0, Math.min(100, parseInt(spd)));
+        sendCmd(`2,${val}#`);
+      }
+    }
+
+    function setTimerState(state) {
+      document.getElementById('timer_status').value = state;
+      sendCmd(state === "ON" ? '5#' : '4#');
+    }
+
+    function setLuxRange() {
+      const minVal = document.getElementById('lux_min').value.trim();
+      const maxVal = document.getElementById('lux_max').value.trim();
+      if (!minVal || !maxVal) return alert("กรุณากรอกช่วงค่าแสงให้ครบถ้วน");
+      sendCmd(`6,${parseFloat(minVal)},${parseFloat(maxVal)}#`);
+    }
+
+    function setSpecificTime(funcCode, hId, mId, sId) {
+      const h = document.getElementById(hId).value.trim();
+      const m = document.getElementById(mId).value.trim();
+      const s = document.getElementById(sId).value.trim();
+      if (!h || !m || !s) return alert("กรุณากรอกเวลาให้ครบถ้วน");
+      sendCmd(`${funcCode},${parseInt(h)},${parseInt(m)},${parseInt(s)}#`);
+    }
+  </script>
+</body>
+</html>
