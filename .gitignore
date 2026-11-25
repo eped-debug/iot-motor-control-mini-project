@@ -70,3 +70,6 @@ node_modules/
 
 # Local MicroPython Wi-Fi configuration (contains credentials)
 boot.py
+
+# Keep the local course report out of the public repository
+โครงงานอินเตอร์เน็ตของสรรพสิ่ง กลุ่มที่ 1.docx
